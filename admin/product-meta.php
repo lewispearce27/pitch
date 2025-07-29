@@ -36,7 +36,7 @@ add_action('woocommerce_product_options_general_product_data', function() {
             'https://api.pitchprint.io/api/designs',
             [
                 'headers' => [
-                    'Authorization' => 'Bearer ' . $api_key,
+                    'x-api-key' => $api_key,
                 ],
                 'timeout' => 15,
             ]
@@ -45,7 +45,7 @@ add_action('woocommerce_product_options_general_product_data', function() {
         if (!is_wp_error($response)) {
             $body = wp_remote_retrieve_body($response);
 
-            // Log the raw body to debug.log
+            // Log raw body
             error_log('PitchPrint API Response: ' . $body);
 
             $data = json_decode($body, true);
