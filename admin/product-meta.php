@@ -2,15 +2,18 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Get PitchPrint auth token using API + Secret.
- * Token is cached for 15 minutes.
+ * Authenticate with PitchPrint v3 API.
+ * Returns a token and caches it for 15 minutes.
  */
 function ppcustom_get_pitchprint_token() {
+
+    // Use cached token if available
     $cached = get_transient('ppcustom_pitchprint_token');
     if ($cached) {
         return $cached;
     }
 
+    // Get keys from settings
     $options = get_option('ppcustom_settings');
     $api_key = $options['api_key'] ?? '';
     $secret  = $options['secret_key'] ?? '';
@@ -19,8 +22,9 @@ function ppcustom_get_pitchprint_token() {
         return false;
     }
 
+    // Call the v3 auth endpoint
     $response = wp_remote_post(
-        'https://api.pitchprint.io/runtime/auth',
+        'https://api.pitchprint.io/api/auth',
         [
             'headers' => [ 'Content-Type' => 'application/json' ],
             'body'    => wp_json_encode([
@@ -38,11 +42,14 @@ function ppcustom_get_pitchprint_token() {
 
     $body = wp_remote_retrieve_body($response);
     error_log('PitchPrint Auth Response: ' . $body);
+
     $data = json_decode($body, true);
 
-    if (isset($data['token'])) {
-        set_transient('ppcustom_pitchprint_token', $data['token'], 15 * MINUTE_IN_SECONDS);
-        return $data['token'];
+    // Token for v3 API is inside data.token
+    if (isset($data['data']['token'])) {
+        $token = $data['data']['token'];
+        set_transient('ppcustom_pitchprint_token', $token, 15 * MINUTE_IN_SECONDS);
+        return $token;
     }
 
     return false;
@@ -59,7 +66,7 @@ add_action('woocommerce_product_options_general_product_data', function() {
 
     echo '<div class="options_group">';
 
-    // Button selector
+    // Button mode select box
     woocommerce_wp_select([
         'id'          => '_ppcustom_button_mode',
         'label'       => __('PitchPrint Buttons', 'ppcustom'),
@@ -75,17 +82,18 @@ add_action('woocommerce_product_options_general_product_data', function() {
 
     echo '<p class="form-field"><label for="_ppcustom_design_id">PitchPrint Design</label>';
 
-    // Authenticate and fetch designs
+    // Authenticate
     $token = ppcustom_get_pitchprint_token();
     if (!$token) {
         echo '<em>Please check your PitchPrint API Key and Secret in settings.</em>';
     } else {
+
         echo '<select id="_ppcustom_design_id" name="_ppcustom_design_id">';
         echo '<option value="">Select a design…</option>';
 
-        // Get designs using the token
+        // Fetch designs from v3 endpoint
         $response = wp_remote_get(
-            'https://api.pitchprint.io/runtime/designs',
+            'https://api.pitchprint.io/api/designs',
             [
                 'headers' => [
                     'Authorization' => 'Bearer ' . $token,
@@ -100,11 +108,12 @@ add_action('woocommerce_product_options_general_product_data', function() {
 
             $data = json_decode($body, true);
 
-            // Detect structure (sections -> designs)
             if (isset($data['sections']) && is_array($data['sections']) && count($data['sections']) > 0) {
+
                 foreach ($data['sections'] as $section) {
                     $section_title = esc_html($section['title'] ?? 'Other');
                     echo '<optgroup label="' . $section_title . '">';
+
                     if (isset($section['designs']) && is_array($section['designs'])) {
                         foreach ($section['designs'] as $design) {
                             $id = esc_attr($design['id']);
@@ -113,8 +122,10 @@ add_action('woocommerce_product_options_general_product_data', function() {
                             echo "<option value='{$id}' {$selected}>{$title}</option>";
                         }
                     }
+
                     echo '</optgroup>';
                 }
+
             } else {
                 echo '<option value="">No designs found.</option>';
             }
@@ -135,6 +146,7 @@ add_action('woocommerce_product_options_general_product_data', function() {
  * Save PitchPrint fields
  */
 add_action('woocommerce_process_product_meta', function($post_id) {
+
     if (isset($_POST['_ppcustom_design_id'])) {
         update_post_meta(
             $post_id,
@@ -142,6 +154,7 @@ add_action('woocommerce_process_product_meta', function($post_id) {
             sanitize_text_field($_POST['_ppcustom_design_id'])
         );
     }
+
     if (isset($_POST['_ppcustom_button_mode'])) {
         update_post_meta(
             $post_id,
