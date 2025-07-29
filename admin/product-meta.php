@@ -1,6 +1,9 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
+/**
+ * Add PitchPrint fields to WooCommerce product admin
+ */
 add_action('woocommerce_product_options_general_product_data', function() {
 
     $options = get_option('ppcustom_settings');
@@ -24,14 +27,16 @@ add_action('woocommerce_product_options_general_product_data', function() {
         'value'       => $button_mode
     ]);
 
+    // Design dropdown
     echo '<p class="form-field"><label for="_ppcustom_design_id">PitchPrint Design</label>';
 
     if (!$api_key) {
         echo '<em>Please set your API Key in the PitchPrint settings page.</em>';
     } else {
         echo '<select id="_ppcustom_design_id" name="_ppcustom_design_id">';
-        echo '<option value="">Select a design…</option>';
+        echo '<option value="">Fetching designs...</option>';
 
+        // Request designs from PitchPrint API (v3)
         $response = wp_remote_get(
             'https://api.pitchprint.io/api/designs',
             [
@@ -43,30 +48,15 @@ add_action('woocommerce_product_options_general_product_data', function() {
         );
 
         if (!is_wp_error($response)) {
+            $status_code = wp_remote_retrieve_response_code($response);
             $body = wp_remote_retrieve_body($response);
 
-            // Log raw body
-            error_log('PitchPrint API Response: ' . $body);
+            // Log the response for debugging
+            error_log('PitchPrint API Status: ' . $status_code);
+            error_log('PitchPrint API RAW Response: ' . $body);
 
-            $data = json_decode($body, true);
-
-            if (isset($data['sections']) && is_array($data['sections']) && count($data['sections']) > 0) {
-                foreach ($data['sections'] as $section) {
-                    $section_title = esc_html($section['title'] ?? 'Other');
-                    echo '<optgroup label="' . $section_title . '">';
-                    if (isset($section['designs']) && is_array($section['designs'])) {
-                        foreach ($section['designs'] as $design) {
-                            $id = esc_attr($design['id']);
-                            $title = esc_html($design['title']);
-                            $selected = ($selected_design === $id) ? 'selected' : '';
-                            echo "<option value='{$id}' {$selected}>{$title}</option>";
-                        }
-                    }
-                    echo '</optgroup>';
-                }
-            } else {
-                echo '<option value="">No designs found.</option>';
-            }
+            // For now, we just show a message
+            echo '<option value="">Check debug.log for raw API response</option>';
         } else {
             error_log('PitchPrint API Error: ' . $response->get_error_message());
             echo '<option value="">Failed to fetch designs.</option>';
@@ -79,6 +69,9 @@ add_action('woocommerce_product_options_general_product_data', function() {
     echo '</div>';
 });
 
+/**
+ * Save PitchPrint fields
+ */
 add_action('woocommerce_process_product_meta', function($post_id) {
     if (isset($_POST['_ppcustom_design_id'])) {
         update_post_meta(
