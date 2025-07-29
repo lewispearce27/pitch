@@ -13,11 +13,15 @@ jQuery(function($) {
             action: 'ppcustom_fetch_designs',
             categoryId: categoryId
         }, function(response) {
-            if (response.data) {
-                designSelect.html('<option value="">Select a design…</option>');
-                response.data.forEach(function(design) {
+            designSelect.html('<option value="">Select a design…</option>');
+
+            // Check for data.items structure
+            if (response.data && response.data.items && response.data.items.length > 0) {
+                response.data.items.forEach(function(design) {
                     var selected = (design.id === ppcustom_admin.selectedDesign) ? 'selected' : '';
-                    designSelect.append('<option value="' + design.id + '" ' + selected + '>' + design.title + '</option>');
+                    designSelect.append(
+                        '<option value="' + design.id + '" ' + selected + '>' + design.title + '</option>'
+                    );
                 });
             } else {
                 designSelect.html('<option value="">No designs found</option>');
