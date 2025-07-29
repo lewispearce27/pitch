@@ -1,111 +1,143 @@
 <?php
-/**
- * Plugin Name: PitchPrint Custom Integration
- * Description: Custom integration of PitchPrint with WooCommerce. Adds Design Online and Upload Artwork buttons.
- * Version: 1.1.0
- * Author: Your Name
- */
+/*
+Plugin Name: PitchPrint Custom Integration
+Description: Adds Design Online and Upload Artwork buttons integrated with PitchPrint.
+Version: 1.0
+Author: Your Name
+*/
 
 if (!defined('ABSPATH')) exit;
 
-// Define constants
+// Constants
 define('PPCUSTOM_PATH', plugin_dir_path(__FILE__));
 define('PPCUSTOM_URL', plugin_dir_url(__FILE__));
 
-// Include admin functionality
-if (is_admin()) {
-    require_once PPCUSTOM_PATH . 'admin/menu.php';
-    require_once PPCUSTOM_PATH . 'admin/product-meta.php';
-}
+/**
+ * Include admin meta fields
+ */
+require_once PPCUSTOM_PATH . 'admin/product-meta.php';
 
 /**
- * Enqueue scripts and pass settings to JS
+ * Register admin menu for PitchPrint settings
  */
-add_action('wp_enqueue_scripts', function() {
-    if (!is_product()) return;
-
-    wp_enqueue_style(
-        'ppcustom-style',
-        PPCUSTOM_URL . 'public/css/custom.css'
+add_action('admin_menu', function() {
+    add_menu_page(
+        'PitchPrint Settings',
+        'PitchPrint',
+        'manage_options',
+        'ppcustom-settings',
+        'ppcustom_render_settings_page',
+        'dashicons-art'
     );
-
-    wp_enqueue_script(
-        'pp-sdk',
-        'https://pitchprint.io/rsc/js/client.js',
-        [],
-        null,
-        true
-    );
-
-    wp_enqueue_script(
-        'ppcustom-js',
-        PPCUSTOM_URL . 'public/js/custom.js',
-        ['jquery','pp-sdk'],
-        null,
-        true
-    );
-
-    global $post;
-    $design_id = get_post_meta($post->ID, '_ppcustom_design_id', true);
-    $options   = get_option('ppcustom_settings');
-
-    wp_localize_script('ppcustom-js', 'ppcustom', [
-        'designId' => $design_id,
-        'apiKey'   => $options['api_key'] ?? '',
-        'ajaxUrl'  => admin_url('admin-ajax.php')
-    ]);
 });
 
 /**
- * Add custom PitchPrint buttons on the product page
+ * Register settings
  */
-add_action('woocommerce_after_add_to_cart_button', function() {
-    global $post;
+add_action('admin_init', function() {
+    register_setting('ppcustom_settings_group', 'ppcustom_settings');
 
-    $mode = get_post_meta($post->ID, '_ppcustom_button_mode', true);
-    if (!$mode) {
-        $mode = 'both'; // default
+    add_settings_section(
+        'ppcustom_main_section',
+        'PitchPrint API Settings',
+        '__return_null',
+        'ppcustom-settings'
+    );
+
+    add_settings_field(
+        'api_key',
+        'API Key',
+        function() {
+            $options = get_option('ppcustom_settings');
+            echo '<input type="text" name="ppcustom_settings[api_key]" value="' . esc_attr($options['api_key'] ?? '') . '" class="regular-text">';
+        },
+        'ppcustom-settings',
+        'ppcustom_main_section'
+    );
+
+    add_settings_field(
+        'secret_key',
+        'Secret Key',
+        function() {
+            $options = get_option('ppcustom_settings');
+            echo '<input type="text" name="ppcustom_settings[secret_key]" value="' . esc_attr($options['secret_key'] ?? '') . '" class="regular-text">';
+        },
+        'ppcustom-settings',
+        'ppcustom_main_section'
+    );
+});
+
+/**
+ * Render settings page
+ */
+function ppcustom_render_settings_page() {
+    echo '<div class="wrap"><h1>PitchPrint Settings</h1>';
+    echo '<form method="post" action="options.php">';
+    settings_fields('ppcustom_settings_group');
+    do_settings_sections('ppcustom-settings');
+    submit_button();
+    echo '</form></div>';
+}
+
+/**
+ * Enqueue frontend scripts and PitchPrint SDK
+ */
+add_action('wp_enqueue_scripts', function() {
+
+    if (is_product()) {
+
+        // Enqueue PitchPrint SDK
+        wp_enqueue_script(
+            'pitchprint-sdk',
+            'https://pitchprint.io/rsc/js/pitchprint.js',
+            [],
+            null,
+            true
+        );
+
+        // Enqueue frontend custom script
+        wp_enqueue_script(
+            'ppcustom-frontend',
+            PPCUSTOM_URL . 'public/js/custom.js',
+            ['jquery', 'pitchprint-sdk'],
+            null,
+            true
+        );
+
+        // Pass data to JS
+        global $product;
+        $design_id = get_post_meta($product->get_id(), '_ppcustom_design_id', true);
+        $options = get_option('ppcustom_settings');
+        $api_key = $options['api_key'] ?? '';
+
+        wp_localize_script('ppcustom-frontend', 'ppcustom', [
+            'designId' => $design_id,
+            'apiKey'   => $api_key
+        ]);
+    }
+});
+
+/**
+ * Show buttons on single product page
+ */
+add_action('woocommerce_single_product_summary', function() {
+    global $product;
+    $button_mode = get_post_meta($product->get_id(), '_ppcustom_button_mode', true) ?: 'both';
+
+    echo '<div class="ppcustom-buttons" style="margin-top:20px;">';
+
+    if ($button_mode === 'both' || $button_mode === 'design') {
+        echo '<button type="button" class="button pp-design-online" style="margin-right:10px;">Design Online</button>';
     }
 
-    echo '<div class="ppcustom-buttons">';
-
-    // Design button
-    if ($mode === 'both' || $mode === 'design') {
-        echo '<button type="button" class="button pp-design-online">Design Online</button>';
-    }
-
-    // Upload button
-    if ($mode === 'both' || $mode === 'upload') {
+    if ($button_mode === 'both' || $button_mode === 'upload') {
         echo '<button type="button" class="button pp-upload-artwork">Upload Artwork</button>';
+        // Modal placeholder
+        echo '<div id="pp-upload-modal" style="display:none;">';
+        echo '<h3>Upload Artwork</h3>';
+        echo '<input type="file" id="pp-upload-file">';
+        echo '</div>';
     }
 
     echo '</div>';
-
-    // Modal only if upload option is active
-    if ($mode === 'both' || $mode === 'upload') {
-        echo '<div id="pp-upload-modal" style="display:none;">
-                <input type="file" id="pp-file-input" />
-                <button id="pp-upload-submit" class="button">Start</button>
-              </div>';
-    }
-});
-
-/**
- * Handle upload via AJAX
- */
-add_action('wp_ajax_ppcustom_upload', 'ppcustom_upload');
-add_action('wp_ajax_nopriv_ppcustom_upload', 'ppcustom_upload');
-
-function ppcustom_upload() {
-    if (!function_exists('wp_handle_upload')) {
-        require_once(ABSPATH . 'wp-admin/includes/file.php');
-    }
-
-    $uploaded = wp_handle_upload($_FILES['file'], ['test_form' => false]);
-
-    if (isset($uploaded['url'])) {
-        wp_send_json(['url' => $uploaded['url']]);
-    } else {
-        wp_send_json_error(['message' => 'Upload failed']);
-    }
-}
+}, 35);
