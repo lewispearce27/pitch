@@ -1,9 +1,6 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
-/**
- * Add PitchPrint fields to WooCommerce product admin
- */
 add_action('woocommerce_product_options_general_product_data', function() {
 
     $options = get_option('ppcustom_settings');
@@ -13,7 +10,7 @@ add_action('woocommerce_product_options_general_product_data', function() {
 
     echo '<div class="options_group">';
 
-    // Button Mode
+    // Button selector
     woocommerce_wp_select([
         'id'          => '_ppcustom_button_mode',
         'label'       => __('PitchPrint Buttons', 'ppcustom'),
@@ -27,7 +24,6 @@ add_action('woocommerce_product_options_general_product_data', function() {
         'value'       => $button_mode
     ]);
 
-    // Design Dropdown
     echo '<p class="form-field"><label for="_ppcustom_design_id">PitchPrint Design</label>';
 
     if (!$api_key) {
@@ -48,9 +44,13 @@ add_action('woocommerce_product_options_general_product_data', function() {
 
         if (!is_wp_error($response)) {
             $body = wp_remote_retrieve_body($response);
+
+            // Log the raw body to debug.log
+            error_log('PitchPrint API Response: ' . $body);
+
             $data = json_decode($body, true);
 
-            if (isset($data['sections']) && is_array($data['sections'])) {
+            if (isset($data['sections']) && is_array($data['sections']) && count($data['sections']) > 0) {
                 foreach ($data['sections'] as $section) {
                     $section_title = esc_html($section['title'] ?? 'Other');
                     echo '<optgroup label="' . $section_title . '">';
@@ -68,6 +68,7 @@ add_action('woocommerce_product_options_general_product_data', function() {
                 echo '<option value="">No designs found.</option>';
             }
         } else {
+            error_log('PitchPrint API Error: ' . $response->get_error_message());
             echo '<option value="">Failed to fetch designs.</option>';
         }
 
@@ -78,9 +79,6 @@ add_action('woocommerce_product_options_general_product_data', function() {
     echo '</div>';
 });
 
-/**
- * Save PitchPrint fields
- */
 add_action('woocommerce_process_product_meta', function($post_id) {
     if (isset($_POST['_ppcustom_design_id'])) {
         update_post_meta(
