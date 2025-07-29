@@ -14,7 +14,6 @@ function ppcustom_fetch_pitchprint_designs() {
         return false;
     }
 
-    // Create timestamp and signature
     $timestamp = time();
     $signature = md5($api_key . $secret . $timestamp);
 
@@ -44,8 +43,9 @@ function ppcustom_fetch_pitchprint_designs() {
     error_log('PitchPrint fetch-design-categories RAW: ' . $raw);
     $data = json_decode($raw, true);
 
-    if (isset($data['sections']) && is_array($data['sections'])) {
-        return $data['sections'];
+    // New API returns 'data', not 'sections'
+    if (isset($data['data']) && is_array($data['data'])) {
+        return $data['data'];
     }
 
     return false;
@@ -61,7 +61,7 @@ add_action('woocommerce_product_options_general_product_data', function() {
 
     echo '<div class="options_group">';
 
-    // Button selector
+    // Button mode selector
     woocommerce_wp_select([
         'id'          => '_ppcustom_button_mode',
         'label'       => __('PitchPrint Buttons', 'ppcustom'),
@@ -77,29 +77,19 @@ add_action('woocommerce_product_options_general_product_data', function() {
 
     echo '<p class="form-field"><label for="_ppcustom_design_id">PitchPrint Design</label>';
 
-    // Fetch designs using signature auth
-    $sections = ppcustom_fetch_pitchprint_designs();
-    if ($sections === false) {
+    $categories = ppcustom_fetch_pitchprint_designs();
+    if ($categories === false) {
         echo '<em>Please check your PitchPrint API Key and Secret in settings.</em>';
     } else {
-
         echo '<select id="_ppcustom_design_id" name="_ppcustom_design_id">';
         echo '<option value="">Select a design…</option>';
 
-        foreach ($sections as $section) {
-            $section_title = esc_html($section['title'] ?? 'Other');
-            echo '<optgroup label="' . $section_title . '">';
-
-            if (isset($section['designs']) && is_array($section['designs'])) {
-                foreach ($section['designs'] as $design) {
-                    $id = esc_attr($design['id']);
-                    $title = esc_html($design['title']);
-                    $selected = ($selected_design === $id) ? 'selected' : '';
-                    echo "<option value='{$id}' {$selected}>{$title}</option>";
-                }
-            }
-
-            echo '</optgroup>';
+        // Each item in data is a category (not grouped sections anymore)
+        foreach ($categories as $cat) {
+            $id = esc_attr($cat['id']);
+            $title = esc_html($cat['title']);
+            $selected = ($selected_design === $id) ? 'selected' : '';
+            echo "<option value='{$id}' {$selected}>{$title}</option>";
         }
 
         echo '</select>';
