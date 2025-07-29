@@ -44,7 +44,7 @@ function ppcustom_fetch_pitchprint_categories() {
 }
 
 /**
- * Fetch designs for a category (used via AJAX)
+ * Fetch designs for a category (AJAX handler)
  */
 add_action('wp_ajax_ppcustom_fetch_designs', function() {
     $category_id = sanitize_text_field($_POST['categoryId'] ?? '');
@@ -75,10 +75,15 @@ add_action('wp_ajax_ppcustom_fetch_designs', function() {
     );
 
     if (is_wp_error($response)) {
+        error_log('PitchPrint fetch-designs error: ' . $response->get_error_message());
         wp_send_json_error(['message' => 'Request error']);
     }
 
-    $data = json_decode(wp_remote_retrieve_body($response), true);
+    // Log raw response
+    $raw = wp_remote_retrieve_body($response);
+    error_log('PitchPrint fetch-designs RAW: ' . $raw);
+
+    $data = json_decode($raw, true);
     wp_send_json($data);
 });
 
@@ -132,7 +137,7 @@ add_action('woocommerce_product_options_general_product_data', function() {
     }
     echo '</select></p>';
 
-    // Design dropdown (populated by JS)
+    // Design dropdown (AJAX populated)
     echo '<p class="form-field"><label for="_ppcustom_design_id">PitchPrint Design</label>';
     echo '<select id="_ppcustom_design_id" name="_ppcustom_design_id">';
     echo '<option value="">Select a design…</option>';
@@ -142,7 +147,7 @@ add_action('woocommerce_product_options_general_product_data', function() {
 });
 
 /**
- * Save product fields
+ * Save fields
  */
 add_action('woocommerce_process_product_meta', function($post_id) {
     if (isset($_POST['_ppcustom_design_id'])) {
