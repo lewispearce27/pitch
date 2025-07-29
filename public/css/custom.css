@@ -1,0 +1,10 @@
+.ppcustom-buttons { margin-top: 10px; }
+#pp-upload-modal {
+    background: #fff;
+    border: 1px solid #ccc;
+    padding: 15px;
+    position: fixed;
+    top: 20%;
+    left: 40%;
+    z-index: 1000;
+}
