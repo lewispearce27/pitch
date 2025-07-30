@@ -1,11 +1,11 @@
-.ppcustom-buttons { margin-top: 10px; }
-#pp-upload-modal {
-    background: #fff;
-    border: 1px solid #ccc;
-    padding: 15px;
-    position: fixed;
-    top: 20%;
-    left: 40%;
-    z-index: 1000;
+#ppcustom-buttons .button {
+    background: #3a75c4;
+    color: #fff;
+    padding: 10px 18px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
 }
-
+#ppcustom-buttons .button:hover {
+    background: #2e5a96;
+}
