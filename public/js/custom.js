@@ -1,6 +1,5 @@
 jQuery(document).ready(function ($) {
 
-    // Debug log
     console.log('PitchPrint Custom JS loaded');
 
     // If PitchPrint config is missing, stop.
@@ -15,16 +14,12 @@ jQuery(document).ready(function ($) {
             console.warn('PitchPrint SDK not loaded yet.');
             return;
         }
-
-        // Ensure we have a design ID and API key
         if (!ppcustom.designId || !ppcustom.apiKey) {
             console.warn('No designId or apiKey provided.');
             return;
         }
-
         console.log('Initialising PitchPrint with designId:', ppcustom.designId);
 
-        // Configure PitchPrint
         window.pitchprint = new PitchPrint({
             apiKey: ppcustom.apiKey,
             designId: ppcustom.designId
@@ -45,7 +40,7 @@ jQuery(document).ready(function ($) {
         }
     }
 
-    // Bind to the Design Online button
+    // Design Online button
     $(document).on('click', '.ppcustom-design-btn', function (e) {
         e.preventDefault();
 
@@ -59,6 +54,29 @@ jQuery(document).ready(function ($) {
         });
     });
 
+    // Upload Artwork button (show modal)
+    $(document).on('click', '.ppcustom-upload-btn', function (e) {
+        e.preventDefault();
+        $('#pp-upload-modal').show();
+    });
+
+    // Close modal
+    $(document).on('click', '#pp-upload-close', function () {
+        $('#pp-upload-modal').hide();
+    });
+
+    // Upload logic (fake, you will want to add your real upload integration here)
+    $(document).on('click', '#pp-upload-submit', function () {
+        var fileInput = $('#pp-artwork-file')[0];
+        if (!fileInput.files.length) {
+            alert('Please select a file.');
+            return;
+        }
+        alert('File "' + fileInput.files[0].name + '" selected for upload (integration needed).');
+        $('#pp-upload-modal').hide();
+    });
+
     // Optionally, auto-initialise PitchPrint on page load
     waitForPitchPrint(initPitchPrint);
 });
+
