@@ -1,18 +1,14 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
-/**
- * Helper: Generate PitchPrint signature
- */
+// Helper: PitchPrint Signature
 function ppcustom_pitchprint_signature($api_key, $secret) {
     $timestamp = time();
     $signature = md5($api_key . $secret . $timestamp);
     return [$timestamp, $signature];
 }
 
-/**
- * Fetch PitchPrint categories
- */
+// Fetch PitchPrint Categories (API)
 function ppcustom_fetch_pitchprint_categories() {
     $options = get_option('ppcustom_settings');
     $api_key = $options['api_key'] ?? '';
@@ -43,9 +39,7 @@ function ppcustom_fetch_pitchprint_categories() {
     return isset($data['data']) ? $data['data'] : false;
 }
 
-/**
- * Fetch designs for a category (AJAX handler)
- */
+// Fetch designs for a category (AJAX)
 add_action('wp_ajax_ppcustom_fetch_designs', function() {
     $category_id = sanitize_text_field($_POST['categoryId'] ?? '');
     $options = get_option('ppcustom_settings');
@@ -79,7 +73,6 @@ add_action('wp_ajax_ppcustom_fetch_designs', function() {
         wp_send_json_error(['message' => 'Request error']);
     }
 
-    // Log raw response
     $raw = wp_remote_retrieve_body($response);
     error_log('PitchPrint fetch-designs RAW: ' . $raw);
 
@@ -87,57 +80,26 @@ add_action('wp_ajax_ppcustom_fetch_designs', function() {
     wp_send_json($data);
 });
 
-/**
- * Add a PitchPrint tab to the Product Data metabox
- */
-add_filter('woocommerce_product_data_tabs', function($tabs) {
-    $tabs['pitchprint'] = [
-        'label'    => __('PitchPrint', 'ppcustom'),
-        'target'   => 'ppcustom_options',
-        'class'    => ['show_if_simple', 'show_if_variable', 'show_if_external'],
-        'priority' => 60,
-    ];
-    return $tabs;
-});
-
-/**
- * Output the PitchPrint fields inside the custom tab
- */
+// Add fields to WooCommerce product admin (NEW: wrap in tabbed section "PitchPrint")
 add_action('woocommerce_product_data_panels', function() {
     global $post;
-    if (!$post || $post->post_type !== 'product') return;
-
     $selected_design = get_post_meta($post->ID, '_ppcustom_design_id', true);
     $selected_cat    = get_post_meta($post->ID, '_ppcustom_category_id', true);
     $button_mode     = get_post_meta($post->ID, '_ppcustom_button_mode', true) ?: 'both';
 
-    // Correctly get JS file URL
-    $admin_js_url = plugins_url('../admin/js/ppcustom-admin.js', __FILE__);
+    echo '<div id="ppcustom_tab" class="panel woocommerce_options_panel">';
+    echo '<h2>PitchPrint</h2>';
 
-    wp_enqueue_script(
-        'ppcustom-admin-js',
-        $admin_js_url,
-        ['jquery'],
-        null,
-        true
-    );
-
-    wp_localize_script('ppcustom-admin-js', 'ppcustom_admin', [
-        'ajaxUrl' => admin_url('admin-ajax.php'),
-        'selectedDesign' => $selected_design
-    ]);
-
-    echo '<div id="ppcustom_options" class="panel woocommerce_options_panel">';
-
+    // Button mode dropdown
     woocommerce_wp_select([
-        'id'      => '_ppcustom_button_mode',
-        'label'   => __('PitchPrint Buttons', 'ppcustom'),
-        'options' => [
+        'id'          => '_ppcustom_button_mode',
+        'label'       => __('PitchPrint Buttons', 'ppcustom'),
+        'options'     => [
             'both'    => 'Show Both Buttons',
             'design'  => 'Design Online Only',
             'upload'  => 'Upload Artwork Only',
         ],
-        'value'   => $button_mode
+        'value'       => $button_mode
     ]);
 
     // Category dropdown
@@ -155,7 +117,7 @@ add_action('woocommerce_product_data_panels', function() {
     }
     echo '</select></p>';
 
-    // Design dropdown (AJAX populated)
+    // Design dropdown (AJAX loaded)
     echo '<p class="form-field"><label for="_ppcustom_design_id">PitchPrint Design</label>';
     echo '<select id="_ppcustom_design_id" name="_ppcustom_design_id">';
     echo '<option value="">Select a design…</option>';
@@ -164,9 +126,36 @@ add_action('woocommerce_product_data_panels', function() {
     echo '</div>';
 });
 
-/**
- * Save fields
- */
+// Add a new tab to the product data tabs for PitchPrint
+add_filter('woocommerce_product_data_tabs', function($tabs) {
+    $tabs['ppcustom_tab'] = [
+        'label'    => __('PitchPrint', 'ppcustom'),
+        'target'   => 'ppcustom_tab',
+        'priority' => 50,
+        'class'    => [],
+    ];
+    return $tabs;
+});
+
+// Enqueue admin JS for AJAX loading of designs
+add_action('admin_enqueue_scripts', function($hook) {
+    global $post;
+    if ($hook === 'post.php' || $hook === 'post-new.php') {
+        wp_enqueue_script(
+            'ppcustom-admin-js',
+            PPCUSTOM_URL . 'admin/js/ppcustom-admin.js',
+            ['jquery'],
+            null,
+            true
+        );
+        wp_localize_script('ppcustom-admin-js', 'ppcustom_admin', [
+            'ajaxUrl' => admin_url('admin-ajax.php'),
+            'selectedDesign' => get_post_meta($post->ID ?? 0, '_ppcustom_design_id', true)
+        ]);
+    }
+});
+
+// Save product-level PitchPrint fields
 add_action('woocommerce_process_product_meta', function($post_id) {
     if (isset($_POST['_ppcustom_design_id'])) {
         update_post_meta($post_id, '_ppcustom_design_id', sanitize_text_field($_POST['_ppcustom_design_id']));
