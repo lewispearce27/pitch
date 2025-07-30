@@ -1,13 +1,25 @@
 <?php
-/**
- * PitchPrint Custom Integration
- * FULL FILE: Handles product admin and frontend output
- */
+/*
+Plugin Name: PitchPrint Custom Integration
+Description: Integrate PitchPrint product options into WooCommerce with per-product design selection and API key management.
+Version: 1.0.0
+Author: Your Name
+*/
 
 if (!defined('ABSPATH')) {
     exit;
 }
 
+// Load required files
+define('PPCUSTOM_PATH', plugin_dir_path(__FILE__));
+define('PPCUSTOM_URL', plugin_dir_url(__FILE__));
+
+// Admin menu and settings
+require_once PPCUSTOM_PATH . 'admin/menu.php';
+// Product meta and AJAX handlers
+require_once PPCUSTOM_PATH . 'admin/product-meta.php';
+
+// Main product/Frontend logic class
 class PitchPrintCustom {
 
     public function __construct() {
@@ -87,7 +99,6 @@ class PitchPrintCustom {
 
         $product_id = $product->get_id();
         $design_id  = get_post_meta($product_id, '_ppcustom_design_id', true);
-        $category_id = get_post_meta($product_id, '_ppcustom_category_id', true);
         $button_mode = get_post_meta($product_id, '_ppcustom_button_mode', true) ?: 'both';
 
         // Plugin options (API key etc.)
@@ -158,4 +169,6 @@ class PitchPrintCustom {
     }
 }
 
+// Initialise
 new PitchPrintCustom();
+
