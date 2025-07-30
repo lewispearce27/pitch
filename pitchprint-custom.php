@@ -1,90 +1,119 @@
 <?php
-/*
-Plugin Name: PitchPrint Custom Integration
-Description: Integrates PitchPrint with WooCommerce products, adding Design Online and Upload Artwork buttons, with admin settings.
-Version: 1.0.0
-Author: Your Name
-*/
+/**
+ * Plugin Name: PitchPrint Custom Integration
+ * Description: Adds PitchPrint integration with Design Online and Artwork Upload buttons to WooCommerce products.
+ * Version: 1.0.0
+ * Author: Your Name
+ */
 
+// Exit if accessed directly
 if (!defined('ABSPATH')) exit;
 
-// Define plugin URL constant
-if (!defined('PPCUSTOM_URL')) {
-    define('PPCUSTOM_URL', plugin_dir_url(__FILE__));
+// Define plugin constants
+define('PPCUSTOM_URL', plugin_dir_url(__FILE__));
+define('PPCUSTOM_PATH', plugin_dir_path(__FILE__));
+
+// Admin Menu - API Keys Page
+add_action('admin_menu', function() {
+    add_menu_page('PitchPrint Settings', 'PitchPrint', 'manage_options', 'pitchprint-settings', 'ppcustom_admin_page');
+});
+function ppcustom_admin_page() {
+    ?>
+    <div class="wrap">
+        <h1>PitchPrint API Settings</h1>
+        <form method="post" action="options.php">
+            <?php
+            settings_fields('ppcustom-settings');
+            do_settings_sections('ppcustom-settings');
+            ?>
+            <table class="form-table">
+                <tr>
+                    <th scope="row">API Key</th>
+                    <td><input type="text" name="ppcustom_api_key" value="<?php echo esc_attr(get_option('ppcustom_api_key')); ?>" size="40" /></td>
+                </tr>
+                <tr>
+                    <th scope="row">Secret Key</th>
+                    <td><input type="text" name="ppcustom_secret_key" value="<?php echo esc_attr(get_option('ppcustom_secret_key')); ?>" size="40" /></td>
+                </tr>
+            </table>
+            <?php submit_button(); ?>
+        </form>
+    </div>
+    <?php
 }
-
-// Debug log to confirm plugin load
-error_log('PitchPrint Custom Integration Loaded');
-
-// Admin settings (API keys/settings)
-require_once plugin_dir_path(__FILE__) . 'admin/menu.php';
-
-// Product admin: meta fields, ajax, etc
-require_once plugin_dir_path(__FILE__) . 'admin/product-meta.php';
-
-// FRONTEND: Enqueue scripts/styles and inject buttons
-add_action('wp_enqueue_scripts', function() {
-    if (!is_product()) return;
-
-    global $post;
-    if (empty($post) || $post->post_type !== 'product') return;
-
-    $design_id   = get_post_meta($post->ID, '_ppcustom_design_id', true);
-    $button_mode = get_post_meta($post->ID, '_ppcustom_button_mode', true) ?: 'both';
-    $options     = get_option('ppcustom_settings');
-    $api_key     = isset($options['api_key']) ? $options['api_key'] : '';
-
-    // Only enqueue if enabled
-    if (!$design_id && $button_mode !== 'upload' && $button_mode !== 'both') return;
-
-    wp_enqueue_script(
-        'pitchprint-sdk',
-        'https://pitchprint.io/rsc/js/pitchprint.js',
-        [],
-        null,
-        true
-    );
-
-    wp_enqueue_script(
-        'ppcustom-frontend',
-        PPCUSTOM_URL . 'public/js/custom.js',
-        ['jquery', 'pitchprint-sdk'],
-        null,
-        true
-    );
-
-    wp_enqueue_style(
-        'ppcustom-css',
-        PPCUSTOM_URL . 'public/css/custom.css'
-    );
-
-    wp_localize_script('ppcustom-frontend', 'ppcustom', [
-        'designId'    => $design_id,
-        'apiKey'      => $api_key,
-        'buttonMode'  => $button_mode,
-    ]);
+add_action('admin_init', function() {
+    register_setting('ppcustom-settings', 'ppcustom_api_key');
+    register_setting('ppcustom-settings', 'ppcustom_secret_key');
 });
 
-// Output PitchPrint buttons on the product page
-add_action('woocommerce_before_add_to_cart_button', function() {
+// Add Product Meta Box
+add_action('add_meta_boxes', function() {
+    add_meta_box(
+        'pitchprint-meta-box',
+        'PitchPrint',
+        'ppcustom_product_meta_box',
+        'product',
+        'side',
+        'default'
+    );
+});
+function ppcustom_product_meta_box($post) {
+    $template = get_post_meta($post->ID, '_ppcustom_template', true);
+    ?>
+    <label for="ppcustom_template">PitchPrint Template ID:</label>
+    <input type="text" name="ppcustom_template" id="ppcustom_template" value="<?php echo esc_attr($template); ?>" style="width:100%;">
+    <?php
+}
+add_action('save_post_product', function($post_id) {
+    if (isset($_POST['ppcustom_template'])) {
+        update_post_meta($post_id, '_ppcustom_template', sanitize_text_field($_POST['ppcustom_template']));
+    }
+});
+
+// FRONTEND: Enqueue Scripts
+add_action('wp_enqueue_scripts', function() {
+    if (is_product()) {
+        // PitchPrint SDK
+        wp_enqueue_script(
+            'pitchprint-js',
+            'https://pitchprint.io/rsc/js/pitchprint.js',
+            array(),
+            null,
+            true
+        );
+        // Custom JS (depends on PitchPrint)
+        wp_enqueue_script(
+            'ppcustom-custom-js',
+            PPCUSTOM_URL . 'js/custom.js',
+            array('pitchprint-js', 'jquery'),
+            time(), // force refresh during development
+            true
+        );
+        // Custom CSS for buttons (optional)
+        wp_enqueue_style(
+            'ppcustom-css',
+            PPCUSTOM_URL . 'css/custom.css',
+            array(),
+            '1.0'
+        );
+    }
+});
+
+// FRONTEND: Output Buttons on Product Page
+add_action('woocommerce_after_add_to_cart_form', function() {
     global $post;
-    $design_id   = get_post_meta($post->ID, '_ppcustom_design_id', true);
-    $button_mode = get_post_meta($post->ID, '_ppcustom_button_mode', true) ?: 'both';
-
-    echo '<div class="ppcustom-buttons">';
-    if ($button_mode === 'both' || $button_mode === 'design') {
-        echo '<button type="button" class="button ppcustom-design-btn">Design Online</button> ';
-    }
-    if ($button_mode === 'both' || $button_mode === 'upload') {
-        echo '<button type="button" class="button ppcustom-upload-btn">Upload Artwork</button>';
-    }
-    echo '</div>';
-
-    // Modal for upload (hidden by default)
-    echo '<div id="pp-upload-modal" style="display:none;">
-        <h4>Upload Artwork</h4>
-        <input type="file" id="pp-artwork-file" accept="image/*,.pdf" />
-        <button type="button" id="pp-upload-submit" class="button">Upload</button>
-        <button type="button" id="pp-upload-close" class="button">Close</button>
-    </div>';
+    $template_id = get_post_meta($post->ID, '_ppcustom_template', true);
+    if (!$template_id) return;
+    ?>
+    <div id="ppcustom-buttons" style="margin:20px 0;">
+        <button id="ppcustom-design-online" data-template="<?php echo esc_attr($template_id); ?>" class="button" style="margin-right:10px;">
+            Design Online
+        </button>
+        <input type="file" id="ppcustom-upload-artwork" style="display:none;">
+        <button id="ppcustom-upload-btn" class="button">
+            Upload Artwork
+        </button>
+        <div id="ppcustom-upload-status" style="margin-top:10px;color:#009900;"></div>
+    </div>
+    <?php
 });
