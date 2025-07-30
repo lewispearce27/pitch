@@ -1,6 +1,7 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
+// Add PitchPrint Settings page to main admin menu
 add_action('admin_menu', function() {
     add_menu_page(
         'PitchPrint Settings',
@@ -13,12 +14,13 @@ add_action('admin_menu', function() {
     );
 });
 
+// Render the PitchPrint settings page
 function ppcustom_settings_page() {
     if (!current_user_can('manage_options')) return;
 
     if (isset($_POST['ppcustom_save'])) {
         update_option('ppcustom_settings', [
-            'api_key' => sanitize_text_field($_POST['api_key']),
+            'api_key'    => sanitize_text_field($_POST['api_key']),
             'secret_key' => sanitize_text_field($_POST['secret_key'])
         ]);
         echo '<div class="updated"><p>Settings saved.</p></div>';
