@@ -15,7 +15,6 @@ jQuery(function($) {
         }, function(response) {
             designSelect.html('<option value="">Select a design…</option>');
 
-            // Check for data.items structure
             if (response.data && response.data.items && response.data.items.length > 0) {
                 response.data.items.forEach(function(design) {
                     var selected = (design.id === ppcustom_admin.selectedDesign) ? 'selected' : '';
