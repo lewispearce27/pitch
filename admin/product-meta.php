@@ -91,14 +91,19 @@ add_action('wp_ajax_ppcustom_fetch_designs', function() {
  * Add PitchPrint fields to WooCommerce product admin
  */
 add_action('woocommerce_product_options_general_product_data', function() {
+    global $post;
+    if (!$post || $post->post_type !== 'product') return;
 
-    $selected_design = get_post_meta(get_the_ID(), '_ppcustom_design_id', true);
-    $selected_cat    = get_post_meta(get_the_ID(), '_ppcustom_category_id', true);
-    $button_mode     = get_post_meta(get_the_ID(), '_ppcustom_button_mode', true) ?: 'both';
+    $selected_design = get_post_meta($post->ID, '_ppcustom_design_id', true);
+    $selected_cat    = get_post_meta($post->ID, '_ppcustom_category_id', true);
+    $button_mode     = get_post_meta($post->ID, '_ppcustom_button_mode', true) ?: 'both';
+
+    // This gets the correct JS file URL in ANY folder:
+    $admin_js_url = plugins_url('../admin/js/ppcustom-admin.js', __FILE__);
 
     wp_enqueue_script(
         'ppcustom-admin-js',
-        PPCUSTOM_URL . 'admin/js/ppcustom-admin.js',
+        $admin_js_url,
         ['jquery'],
         null,
         true
