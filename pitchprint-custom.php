@@ -1,26 +1,22 @@
 <?php
-/*
-Plugin Name: PitchPrint Custom Integration
-Description: Full integration of PitchPrint with WooCommerce, including admin settings, product options, and front-end buttons.
-Version: 1.0.0
-Author: Your Name
-*/
+/**
+ * Plugin Name: PitchPrint Custom Integration
+ * Description: Integrates PitchPrint with WooCommerce for artwork upload and online design per product.
+ * Version: 1.0.0
+ * Author: Your Name
+ */
 
 if (!defined('ABSPATH')) exit;
 
-// Define plugin URL/Path for enqueuing
-define('PPCUSTOM_URL', plugin_dir_url(__FILE__));
 define('PPCUSTOM_PATH', plugin_dir_path(__FILE__));
+define('PPCUSTOM_URL', plugin_dir_url(__FILE__));
 
-// Debug log (for dev)
-if (!function_exists('ppcustom_debug')) {
-    function ppcustom_debug($msg) {
-        if (WP_DEBUG === true) error_log($msg);
-    }
-}
-ppcustom_debug('PitchPrint Custom Integration Loaded');
+// Log plugin loaded for debug
+error_log('PitchPrint Custom Integration Loaded');
 
-/* ========== ADMIN MENU: Settings Page ========== */
+/**
+ * Admin menu for settings
+ */
 add_action('admin_menu', function() {
     add_menu_page(
         'PitchPrint Settings',
@@ -39,7 +35,7 @@ function ppcustom_settings_page() {
     if (isset($_POST['ppcustom_save'])) {
         update_option('ppcustom_settings', [
             'api_key'    => sanitize_text_field($_POST['api_key']),
-            'secret_key' => sanitize_text_field($_POST['secret_key']),
+            'secret_key' => sanitize_text_field($_POST['secret_key'])
         ]);
         echo '<div class="updated"><p>Settings saved.</p></div>';
     }
@@ -65,14 +61,18 @@ function ppcustom_settings_page() {
     <?php
 }
 
-/* ========== HELPER: API SIGNATURE ========== */
+/**
+ * Helper: Generate PitchPrint signature
+ */
 function ppcustom_pitchprint_signature($api_key, $secret) {
     $timestamp = time();
     $signature = md5($api_key . $secret . $timestamp);
     return [$timestamp, $signature];
 }
 
-/* ========== FETCH CATEGORIES (API) ========== */
+/**
+ * Fetch PitchPrint categories
+ */
 function ppcustom_fetch_pitchprint_categories() {
     $options = get_option('ppcustom_settings');
     $api_key = $options['api_key'] ?? '';
@@ -103,7 +103,9 @@ function ppcustom_fetch_pitchprint_categories() {
     return isset($data['data']) ? $data['data'] : false;
 }
 
-/* ========== FETCH DESIGNS (AJAX) ========== */
+/**
+ * Fetch designs for a category (AJAX handler)
+ */
 add_action('wp_ajax_ppcustom_fetch_designs', function() {
     $category_id = sanitize_text_field($_POST['categoryId'] ?? '');
     $options = get_option('ppcustom_settings');
@@ -137,6 +139,7 @@ add_action('wp_ajax_ppcustom_fetch_designs', function() {
         wp_send_json_error(['message' => 'Request error']);
     }
 
+    // Log raw response
     $raw = wp_remote_retrieve_body($response);
     error_log('PitchPrint fetch-designs RAW: ' . $raw);
 
@@ -144,24 +147,27 @@ add_action('wp_ajax_ppcustom_fetch_designs', function() {
     wp_send_json($data);
 });
 
-/* ========== ADMIN: Product Tab with PitchPrint Section ========== */
-add_filter('woocommerce_product_data_tabs', function($tabs) {
-    $tabs['pitchprint'] = [
-        'label'    => __('PitchPrint', 'ppcustom'),
-        'target'   => 'ppcustom_pitchprint_panel',
-        'class'    => [],
-        'priority' => 21,
-    ];
-    return $tabs;
-}, 99);
+/**
+ * Add PitchPrint panel to WooCommerce product admin
+ */
+add_action('add_meta_boxes', function() {
+    add_meta_box(
+        'ppcustom_meta',
+        'PitchPrint',
+        'ppcustom_render_meta_box',
+        'product',
+        'normal',
+        'default'
+    );
+});
 
-add_action('woocommerce_product_data_panels', function() {
-    global $post;
+function ppcustom_render_meta_box($post) {
     $selected_design = get_post_meta($post->ID, '_ppcustom_design_id', true);
     $selected_cat    = get_post_meta($post->ID, '_ppcustom_category_id', true);
     $button_mode     = get_post_meta($post->ID, '_ppcustom_button_mode', true) ?: 'both';
 
-    // Enqueue admin JS
+    wp_nonce_field('ppcustom_meta_box', 'ppcustom_meta_box_nonce');
+
     wp_enqueue_script(
         'ppcustom-admin-js',
         PPCUSTOM_URL . 'admin/js/ppcustom-admin.js',
@@ -169,26 +175,21 @@ add_action('woocommerce_product_data_panels', function() {
         null,
         true
     );
+
     wp_localize_script('ppcustom-admin-js', 'ppcustom_admin', [
         'ajaxUrl' => admin_url('admin-ajax.php'),
         'selectedDesign' => $selected_design
     ]);
 
-    echo '<div id="ppcustom_pitchprint_panel" class="panel woocommerce_options_panel">';
-    echo '<div class="options_group">';
-    // Buttons
-    woocommerce_wp_select([
-        'id'      => '_ppcustom_button_mode',
-        'label'   => __('PitchPrint Buttons', 'ppcustom'),
-        'options' => [
-            'both'   => 'Show Both Buttons',
-            'design' => 'Design Online Only',
-            'upload' => 'Upload Artwork Only',
-        ],
-        'value'   => $button_mode
-    ]);
-    // Category dropdown
-    echo '<p class="form-field"><label for="_ppcustom_category_id">PitchPrint Category</label>';
+    echo '<div class="ppcustom-admin-panel">';
+    echo '<p><strong>PitchPrint Buttons</strong></p>';
+    echo '<select name="_ppcustom_button_mode" id="_ppcustom_button_mode">';
+    echo '<option value="both" ' . selected($button_mode, 'both', false) . '>Show Both Buttons</option>';
+    echo '<option value="design" ' . selected($button_mode, 'design', false) . '>Design Online Only</option>';
+    echo '<option value="upload" ' . selected($button_mode, 'upload', false) . '>Upload Artwork Only</option>';
+    echo '</select>';
+
+    echo '<p><strong>PitchPrint Category</strong></p>';
     echo '<select id="_ppcustom_category_id" name="_ppcustom_category_id">';
     echo '<option value="">Select a category…</option>';
     $categories = ppcustom_fetch_pitchprint_categories();
@@ -200,18 +201,29 @@ add_action('woocommerce_product_data_panels', function() {
             echo "<option value='{$cid}' {$selected}>{$title}</option>";
         }
     }
-    echo '</select></p>';
+    echo '</select>';
+
     // Design dropdown (AJAX populated)
-    echo '<p class="form-field"><label for="_ppcustom_design_id">PitchPrint Design</label>';
+    echo '<p><strong>PitchPrint Design</strong></p>';
     echo '<select id="_ppcustom_design_id" name="_ppcustom_design_id">';
     echo '<option value="">Select a design…</option>';
-    echo '</select></p>';
+    if ($selected_design) {
+        echo '<option value="' . esc_attr($selected_design) . '" selected>' . esc_html($selected_design) . '</option>';
+    }
+    echo '</select>';
 
-    echo '</div></div>';
-});
+    echo '</div>';
+}
 
-// Save meta fields
-add_action('woocommerce_process_product_meta', function($post_id) {
+/**
+ * Save product meta
+ */
+add_action('save_post_product', function($post_id) {
+    if (!isset($_POST['ppcustom_meta_box_nonce']) ||
+        !wp_verify_nonce($_POST['ppcustom_meta_box_nonce'], 'ppcustom_meta_box')) {
+        return;
+    }
+
     if (isset($_POST['_ppcustom_design_id'])) {
         update_post_meta($post_id, '_ppcustom_design_id', sanitize_text_field($_POST['_ppcustom_design_id']));
     }
@@ -223,60 +235,47 @@ add_action('woocommerce_process_product_meta', function($post_id) {
     }
 });
 
-/* ========== FRONTEND: Output Buttons on Product Page ========== */
+/**
+ * ENQUEUE ASSETS
+ */
+add_action('admin_enqueue_scripts', function($hook) {
+    // Only enqueue on product edit page
+    if ('post.php' == $hook || 'post-new.php' == $hook) {
+        wp_enqueue_style('ppcustom-admin', PPCUSTOM_URL . 'admin/css/custom-admin.css');
+    }
+});
+add_action('wp_enqueue_scripts', function() {
+    if (!is_product()) return;
+    wp_enqueue_style('ppcustom-css', PPCUSTOM_URL . 'public/css/custom.css');
+    wp_enqueue_script('pitchprint-sdk', 'https://pitchprint.io/rsc/js/pitchprint.js', [], null, true);
+    wp_enqueue_script('ppcustom-frontend', PPCUSTOM_URL . 'public/js/custom.js', ['jquery', 'pitchprint-sdk'], null, true);
+
+    // Localise product meta for JS
+    global $post;
+    $options = get_option('ppcustom_settings');
+    wp_localize_script('ppcustom-frontend', 'ppcustom', [
+        'designId' => get_post_meta($post->ID, '_ppcustom_design_id', true),
+        'apiKey'   => $options['api_key'] ?? ''
+    ]);
+});
+
+/**
+ * FRONTEND BUTTONS OUTPUT
+ */
 add_action('woocommerce_single_product_summary', function() {
     global $post;
-    if (!$post || $post->post_type !== 'product') return;
+    if (empty($post) || $post->post_type !== 'product') return;
 
     $button_mode = get_post_meta($post->ID, '_ppcustom_button_mode', true) ?: 'both';
     $design_id   = get_post_meta($post->ID, '_ppcustom_design_id', true);
 
-    // Only show if any button enabled and design set
+    $output = '';
     if (($button_mode == 'both' || $button_mode == 'design') && $design_id) {
-        echo '<div class="ppcustom-buttons">';
-        echo '<button type="button" class="button ppcustom-design-btn">Design Online</button>';
-        echo '</div>';
+        $output .= '<div class="ppcustom-buttons"><button type="button" class="button ppcustom-design-btn">Design Online</button></div>';
     }
     if ($button_mode == 'both' || $button_mode == 'upload') {
-        echo '<div class="ppcustom-buttons">';
-        echo '<button type="button" class="button ppcustom-upload-btn">Upload Artwork</button>';
-        echo '</div>';
+        $output .= '<div class="ppcustom-buttons"><button type="button" class="button ppcustom-upload-btn">Upload Artwork</button></div>';
     }
+
+    echo $output;
 }, 25);
-
-/* ========== FRONTEND: Enqueue JS and Pass Settings ========== */
-add_action('wp_enqueue_scripts', function() {
-    if (!is_product()) return;
-    global $post;
-    if (!$post) return;
-
-    $product_id = $post->ID;
-    $design_id  = get_post_meta($product_id, '_ppcustom_design_id', true);
-    $options    = get_option('ppcustom_settings');
-    $api_key    = $options['api_key'] ?? '';
-
-    wp_enqueue_style('ppcustom-frontend-css', PPCUSTOM_URL . 'public/css/custom.css', [], null);
-
-    wp_enqueue_script(
-        'pitchprint-sdk',
-        'https://pitchprint.io/rsc/js/pitchprint.js',
-        [],
-        null,
-        true
-    );
-
-    wp_enqueue_script(
-        'ppcustom-frontend',
-        PPCUSTOM_URL . 'public/js/custom.js',
-        ['jquery', 'pitchprint-sdk'],
-        null,
-        true
-    );
-
-    wp_localize_script('ppcustom-frontend', 'ppcustom', [
-        'designId' => $design_id,
-        'apiKey'   => $api_key
-    ]);
-});
-
-/* ========== End of File ========== */
