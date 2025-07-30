@@ -1,19 +1,34 @@
 <?php
-/**
- * PitchPrint Custom Integration
- * Fully rewritten file
- */
+/*
+Plugin Name: PitchPrint Custom Integration
+Description: PitchPrint and WooCommerce custom integration (admin fields, menu, API, and frontend).
+Version: 1.0
+Author: Lewis Pearce
+*/
 
 if (!defined('ABSPATH')) {
     exit;
 }
 
+// Define plugin URL for asset loading
+if (!defined('PPCUSTOM_URL')) {
+    define('PPCUSTOM_URL', plugin_dir_url(__FILE__));
+}
+
+// --- Include all admin and extra files ---
+require_once __DIR__ . '/admin/menu.php';
+require_once __DIR__ . '/admin/product-meta.php';
+
+// --- Main class definition ---
+// (Your original class code here)
 class PitchPrintCustom {
 
     public function __construct() {
         add_action('add_meta_boxes', [$this, 'add_meta_box']);
         add_action('save_post', [$this, 'save_meta']);
         add_action('wp_enqueue_scripts', [$this, 'enqueue_frontend_scripts']);
+        // Enqueue public CSS for the buttons/modal
+        add_action('wp_enqueue_scripts', [$this, 'enqueue_frontend_styles']);
     }
 
     /**
@@ -68,7 +83,6 @@ class PitchPrintCustom {
      * Enqueue front-end scripts and load PitchPrint.
      */
     public function enqueue_frontend_scripts() {
-
         // Only load on single product pages
         if (!function_exists('is_product') || !is_product()) {
             return;
@@ -116,6 +130,19 @@ class PitchPrintCustom {
             'apiKey'   => $api_key
         ]);
     }
+
+    /**
+     * Enqueue front-end styles.
+     */
+    public function enqueue_frontend_styles() {
+        wp_enqueue_style(
+            'ppcustom-frontend',
+            PPCUSTOM_URL . 'public/css/custom.css',
+            [],
+            null
+        );
+    }
 }
 
+// Instantiate the main plugin class
 new PitchPrintCustom();
