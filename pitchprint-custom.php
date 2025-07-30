@@ -1,32 +1,26 @@
 <?php
-/*
-Plugin Name: PitchPrint Custom Integration
-Description: Integrate PitchPrint product options into WooCommerce with per-product design selection and API key management.
-Version: 1.0.0
-Author: Your Name
-*/
+/**
+ * Plugin Name: PitchPrint Custom Integration
+ * Description: Integrates PitchPrint with WooCommerce products (custom build).
+ * Version: 1.0.0
+ * Author: Lewis Pearce
+ * Text Domain: pitchprint-custom
+ */
 
 if (!defined('ABSPATH')) {
     exit;
 }
 
-// Load required files
-define('PPCUSTOM_PATH', plugin_dir_path(__FILE__));
-define('PPCUSTOM_URL', plugin_dir_url(__FILE__));
-
-// Admin menu and settings
-require_once PPCUSTOM_PATH . 'admin/menu.php';
-// Product meta and AJAX handlers
-require_once PPCUSTOM_PATH . 'admin/product-meta.php';
-
-// Main product/Frontend logic class
 class PitchPrintCustom {
 
     public function __construct() {
+        error_log('PitchPrint Custom Integration Loaded');
+
         add_action('add_meta_boxes', [$this, 'add_meta_box']);
         add_action('save_post', [$this, 'save_meta']);
         add_action('wp_enqueue_scripts', [$this, 'enqueue_frontend_scripts']);
-        add_action('woocommerce_before_add_to_cart_form', [$this, 'frontend_buttons'], 15);
+        // ADD THIS ACTION TO OUTPUT BUTTONS
+        add_action('woocommerce_after_add_to_cart_button', [$this, 'output_pitchprint_buttons']);
     }
 
     /**
@@ -99,7 +93,6 @@ class PitchPrintCustom {
 
         $product_id = $product->get_id();
         $design_id  = get_post_meta($product_id, '_ppcustom_design_id', true);
-        $button_mode = get_post_meta($product_id, '_ppcustom_button_mode', true) ?: 'both';
 
         // Plugin options (API key etc.)
         $options = get_option('ppcustom_settings');
@@ -117,7 +110,7 @@ class PitchPrintCustom {
         // Enqueue custom JS
         wp_enqueue_script(
             'ppcustom-frontend',
-            PPCUSTOM_URL . 'public/js/custom.js',
+            plugins_url('public/js/custom.js', __FILE__),
             ['jquery', 'pitchprint-sdk'],
             null,
             true
@@ -125,8 +118,10 @@ class PitchPrintCustom {
 
         // Enqueue CSS
         wp_enqueue_style(
-            'ppcustom-css',
-            PPCUSTOM_URL . 'public/css/custom.css'
+            'ppcustom-frontend-css',
+            plugins_url('public/css/custom.css', __FILE__),
+            [],
+            null
         );
 
         // Pass data to JS
@@ -137,30 +132,20 @@ class PitchPrintCustom {
     }
 
     /**
-     * Output PitchPrint buttons on product page
+     * Output PitchPrint buttons on product page (after Add to Cart).
      */
-    public function frontend_buttons() {
-        if (!function_exists('is_product') || !is_product()) {
-            return;
-        }
-
+    public function output_pitchprint_buttons() {
         global $post;
-        if (empty($post) || $post->post_type !== 'product') {
+        if (!is_product() || empty($post) || $post->post_type !== 'product') {
             return;
         }
 
-        $product_id = $post->ID;
-        $design_id  = get_post_meta($product_id, '_ppcustom_design_id', true);
-        $button_mode = get_post_meta($product_id, '_ppcustom_button_mode', true) ?: 'both';
-
-        // Only show if a design is set
-        if (!$design_id) {
-            return;
-        }
+        // Fetch meta to decide which buttons to show (future proofing: both for now)
+        $button_mode = get_post_meta($post->ID, '_ppcustom_button_mode', true) ?: 'both';
 
         echo '<div class="ppcustom-buttons">';
         if ($button_mode === 'both' || $button_mode === 'design') {
-            echo '<button type="button" class="button ppcustom-design-btn" style="margin-right:10px;">Design Online</button>';
+            echo '<button type="button" class="button ppcustom-design-btn" style="margin-right:8px;">Design Online</button>';
         }
         if ($button_mode === 'both' || $button_mode === 'upload') {
             echo '<button type="button" class="button ppcustom-upload-btn">Upload Artwork</button>';
@@ -169,6 +154,4 @@ class PitchPrintCustom {
     }
 }
 
-// Initialise
 new PitchPrintCustom();
-
