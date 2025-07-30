@@ -88,9 +88,22 @@ add_action('wp_ajax_ppcustom_fetch_designs', function() {
 });
 
 /**
- * Add PitchPrint fields to WooCommerce product admin
+ * Add a PitchPrint tab to the Product Data metabox
  */
-add_action('woocommerce_product_options_general_product_data', function() {
+add_filter('woocommerce_product_data_tabs', function($tabs) {
+    $tabs['pitchprint'] = [
+        'label'    => __('PitchPrint', 'ppcustom'),
+        'target'   => 'ppcustom_options',
+        'class'    => ['show_if_simple', 'show_if_variable', 'show_if_external'],
+        'priority' => 60,
+    ];
+    return $tabs;
+});
+
+/**
+ * Output the PitchPrint fields inside the custom tab
+ */
+add_action('woocommerce_product_data_panels', function() {
     global $post;
     if (!$post || $post->post_type !== 'product') return;
 
@@ -98,7 +111,7 @@ add_action('woocommerce_product_options_general_product_data', function() {
     $selected_cat    = get_post_meta($post->ID, '_ppcustom_category_id', true);
     $button_mode     = get_post_meta($post->ID, '_ppcustom_button_mode', true) ?: 'both';
 
-    // This gets the correct JS file URL in ANY folder:
+    // Correctly get JS file URL
     $admin_js_url = plugins_url('../admin/js/ppcustom-admin.js', __FILE__);
 
     wp_enqueue_script(
@@ -114,17 +127,17 @@ add_action('woocommerce_product_options_general_product_data', function() {
         'selectedDesign' => $selected_design
     ]);
 
-    echo '<div class="options_group">';
+    echo '<div id="ppcustom_options" class="panel woocommerce_options_panel">';
 
     woocommerce_wp_select([
-        'id'          => '_ppcustom_button_mode',
-        'label'       => __('PitchPrint Buttons', 'ppcustom'),
-        'options'     => [
+        'id'      => '_ppcustom_button_mode',
+        'label'   => __('PitchPrint Buttons', 'ppcustom'),
+        'options' => [
             'both'    => 'Show Both Buttons',
             'design'  => 'Design Online Only',
             'upload'  => 'Upload Artwork Only',
         ],
-        'value'       => $button_mode
+        'value'   => $button_mode
     ]);
 
     // Category dropdown
