@@ -1,34 +1,20 @@
 <?php
-/*
-Plugin Name: PitchPrint Custom Integration
-Description: PitchPrint and WooCommerce custom integration (admin fields, menu, API, and frontend).
-Version: 1.0
-Author: Lewis Pearce
-*/
+/**
+ * PitchPrint Custom Integration
+ * FULL FILE: Handles product admin and frontend output
+ */
 
 if (!defined('ABSPATH')) {
     exit;
 }
 
-// Define plugin URL for asset loading
-if (!defined('PPCUSTOM_URL')) {
-    define('PPCUSTOM_URL', plugin_dir_url(__FILE__));
-}
-
-// --- Include all admin and extra files ---
-require_once __DIR__ . '/admin/menu.php';
-require_once __DIR__ . '/admin/product-meta.php';
-
-// --- Main class definition ---
-// (Your original class code here)
 class PitchPrintCustom {
 
     public function __construct() {
         add_action('add_meta_boxes', [$this, 'add_meta_box']);
         add_action('save_post', [$this, 'save_meta']);
         add_action('wp_enqueue_scripts', [$this, 'enqueue_frontend_scripts']);
-        // Enqueue public CSS for the buttons/modal
-        add_action('wp_enqueue_scripts', [$this, 'enqueue_frontend_styles']);
+        add_action('woocommerce_before_add_to_cart_form', [$this, 'frontend_buttons'], 15);
     }
 
     /**
@@ -101,6 +87,8 @@ class PitchPrintCustom {
 
         $product_id = $product->get_id();
         $design_id  = get_post_meta($product_id, '_ppcustom_design_id', true);
+        $category_id = get_post_meta($product_id, '_ppcustom_category_id', true);
+        $button_mode = get_post_meta($product_id, '_ppcustom_button_mode', true) ?: 'both';
 
         // Plugin options (API key etc.)
         $options = get_option('ppcustom_settings');
@@ -124,6 +112,12 @@ class PitchPrintCustom {
             true
         );
 
+        // Enqueue CSS
+        wp_enqueue_style(
+            'ppcustom-css',
+            PPCUSTOM_URL . 'public/css/custom.css'
+        );
+
         // Pass data to JS
         wp_localize_script('ppcustom-frontend', 'ppcustom', [
             'designId' => $design_id,
@@ -132,17 +126,36 @@ class PitchPrintCustom {
     }
 
     /**
-     * Enqueue front-end styles.
+     * Output PitchPrint buttons on product page
      */
-    public function enqueue_frontend_styles() {
-        wp_enqueue_style(
-            'ppcustom-frontend',
-            PPCUSTOM_URL . 'public/css/custom.css',
-            [],
-            null
-        );
+    public function frontend_buttons() {
+        if (!function_exists('is_product') || !is_product()) {
+            return;
+        }
+
+        global $post;
+        if (empty($post) || $post->post_type !== 'product') {
+            return;
+        }
+
+        $product_id = $post->ID;
+        $design_id  = get_post_meta($product_id, '_ppcustom_design_id', true);
+        $button_mode = get_post_meta($product_id, '_ppcustom_button_mode', true) ?: 'both';
+
+        // Only show if a design is set
+        if (!$design_id) {
+            return;
+        }
+
+        echo '<div class="ppcustom-buttons">';
+        if ($button_mode === 'both' || $button_mode === 'design') {
+            echo '<button type="button" class="button ppcustom-design-btn" style="margin-right:10px;">Design Online</button>';
+        }
+        if ($button_mode === 'both' || $button_mode === 'upload') {
+            echo '<button type="button" class="button ppcustom-upload-btn">Upload Artwork</button>';
+        }
+        echo '</div>';
     }
 }
 
-// Instantiate the main plugin class
 new PitchPrintCustom();
